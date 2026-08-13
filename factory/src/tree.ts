@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { canSplit, childDepth } from "./depth.ts";
+import { ensureWorktreeDependencies } from "./install.ts";
 import { log } from "./log.ts";
 import {
   childPrompt,
@@ -104,6 +105,7 @@ export async function kick(input: {
     branch: rootBranch,
     startPoint,
   });
+  await ensureWorktreeDependencies(rootCwd);
   const rootSlice: NodeSlice = {
     id: parseNonEmptyString("root", "id"),
     title: parseNonEmptyString(slug, "title"),
@@ -221,7 +223,7 @@ async function runNode(input: {
       const nextDepth = childDepth(input.depth);
       const childBranches = await Promise.all(
         outcome.children.map(async (child) => {
-          const childBranch = `${input.branch}/${branchSegment(child.id)}`;
+          const childBranch = `${input.branch}@${branchSegment(child.id)}`;
           const childCwd = worktreePath(input.repoRoot, childBranch);
           await input.git.createWorktree({
             repoRoot: input.repoRoot,
@@ -229,6 +231,7 @@ async function runNode(input: {
             branch: childBranch,
             startPoint,
           });
+          await ensureWorktreeDependencies(childCwd);
           await runNode({
             repoRoot: input.repoRoot,
             job: input.job,
