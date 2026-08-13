@@ -1,15 +1,20 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { promisify } from "node:util";
 import {
   parseJobContract,
   parseNonEmptyString,
   parseNonEmptyStringList,
 } from "../factory/src/contract.ts";
+import { createGitOps } from "../factory/src/git.ts";
 import { kick } from "../factory/src/tree.ts";
 import type { CreatePr, GitOps, RunAgent, SplitChild, VerifyOps } from "../factory/src/types.ts";
+
+const execFileAsync = promisify(execFile);
 
 async function withTempRepoRoot<T>(fn: (repoRoot: string) => Promise<T>): Promise<T> {
   const repoRoot = await mkdtemp(join(tmpdir(), "factory-kick-"));
@@ -129,12 +134,19 @@ test("kick fans out one worktree per child and merges up", async () => {
     assert.equal(result.branch, "factory/demo");
     assert.equal(git.worktrees.length, 3);
     assert.ok(
-      git.worktrees.some((entry) => entry.startsWith("factory/demo/left@")),
+      git.worktrees.some((entry) => entry.startsWith("factory/demo--left@")),
     );
     assert.ok(
-      git.worktrees.some((entry) => entry.startsWith("factory/demo/right@")),
+      git.worktrees.some((entry) => entry.startsWith("factory/demo--right@")),
     );
-    assert.deepEqual(git.merges, ["factory/demo/left", "factory/demo/right"]);
+    assert.deepEqual(git.merges, [
+      "factory/demo--left",
+      "factory/demo--right",
+    ]);
+    assert.equal(
+      git.worktrees.some((entry) => entry.includes("factory/demo/")),
+      false,
+    );
   });
 });
 
@@ -204,5 +216,52 @@ test("kick fails when the run errors and the worktree is clean", async () => {
         }),
       /failed after executing: boom/,
     );
+  });
+});
+
+test("git worktrees accept sibling factory branches joined with --", async () => {
+  await withTempRepoRoot(async (repoRoot) => {
+    await execFileAsync("git", ["init"], { cwd: repoRoot, encoding: "utf8" });
+    await execFileAsync("git", ["config", "user.email", "factory@example.test"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+    });
+    await execFileAsync("git", ["config", "user.name", "factory"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+    });
+    await execFileAsync("git", ["commit", "--allow-empty", "-m", "base"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+    });
+    const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+    });
+    const startPoint = stdout.trim();
+    await mkdir(join(repoRoot, ".factory-worktrees"), { recursive: true });
+    const ops = createGitOps();
+    await ops.createWorktree({
+      repoRoot,
+      worktreePath: join(repoRoot, ".factory-worktrees", "factory-demo"),
+      branch: "factory/demo",
+      startPoint,
+    });
+    await assert.rejects(
+      () =>
+        ops.createWorktree({
+          repoRoot,
+          worktreePath: join(repoRoot, ".factory-worktrees", "nested-left"),
+          branch: "factory/demo/left",
+          startPoint,
+        }),
+      /cannot lock ref|already exists/i,
+    );
+    await ops.createWorktree({
+      repoRoot,
+      worktreePath: join(repoRoot, ".factory-worktrees", "factory-demo--left"),
+      branch: "factory/demo--left",
+      startPoint,
+    });
   });
 });

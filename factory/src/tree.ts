@@ -221,7 +221,7 @@ async function runNode(input: {
       const nextDepth = childDepth(input.depth);
       const childBranches = await Promise.all(
         outcome.children.map(async (child) => {
-          const childBranch = `${input.branch}/${branchSegment(child.id)}`;
+          const childBranch = `${input.branch}--${branchSegment(child.id)}`;
           const childCwd = worktreePath(input.repoRoot, childBranch);
           await input.git.createWorktree({
             repoRoot: input.repoRoot,
