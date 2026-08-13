@@ -134,14 +134,14 @@ test("kick fans out one worktree per child and merges up", async () => {
     assert.equal(result.branch, "factory/demo");
     assert.equal(git.worktrees.length, 3);
     assert.ok(
-      git.worktrees.some((entry) => entry.startsWith("factory/demo--left@")),
+      git.worktrees.some((entry) => entry.startsWith("factory/demo@left@")),
     );
     assert.ok(
-      git.worktrees.some((entry) => entry.startsWith("factory/demo--right@")),
+      git.worktrees.some((entry) => entry.startsWith("factory/demo@right@")),
     );
     assert.deepEqual(git.merges, [
-      "factory/demo--left",
-      "factory/demo--right",
+      "factory/demo@left",
+      "factory/demo@right",
     ]);
     assert.equal(
       git.worktrees.some((entry) => entry.includes("factory/demo/")),
@@ -219,7 +219,7 @@ test("kick fails when the run errors and the worktree is clean", async () => {
   });
 });
 
-test("git worktrees accept sibling factory branches joined with --", async () => {
+test("git worktrees accept sibling factory branches joined with @", async () => {
   await withTempRepoRoot(async (repoRoot) => {
     await execFileAsync("git", ["init"], { cwd: repoRoot, encoding: "utf8" });
     await execFileAsync("git", ["config", "user.email", "factory@example.test"], {
@@ -259,8 +259,8 @@ test("git worktrees accept sibling factory branches joined with --", async () =>
     );
     await ops.createWorktree({
       repoRoot,
-      worktreePath: join(repoRoot, ".factory-worktrees", "factory-demo--left"),
-      branch: "factory/demo--left",
+      worktreePath: join(repoRoot, ".factory-worktrees", "factory-demo@left"),
+      branch: "factory/demo@left",
       startPoint,
     });
   });
