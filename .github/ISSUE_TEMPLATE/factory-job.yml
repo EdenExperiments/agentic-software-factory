@@ -1,0 +1,47 @@
+name: Factory job
+description: Opt-in factory job after you accept a saved Plan Mode plan. Do not apply factory:ready until you are ready to kick.
+title: "[factory] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Nested SDK tree is the kickoff default. It is not implemented until the dispatcher exists. Ordinary agents must not treat factory docs as a live procedure.
+
+        Fill this after you save a Plan Mode plan under `.cursor/plans/`. Apply the `factory:ready` label yourself when you want a kickoff. Do not rely on this template to start a run.
+  - type: input
+    id: planPath
+    attributes:
+      label: Plan path
+      description: Path to the saved Plan Mode plan under .cursor/plans/
+      placeholder: .cursor/plans/my-epic.plan.md
+    validations:
+      required: true
+  - type: textarea
+    id: acceptanceCriteria
+    attributes:
+      label: Acceptance criteria
+      description: One criterion per line
+      placeholder: |
+        Overlay rules are alwaysApply
+        npm test passes
+    validations:
+      required: true
+  - type: textarea
+    id: targetPaths
+    attributes:
+      label: Target paths
+      description: One path per line
+      placeholder: |
+        src/app.ts
+        test/app.test.ts
+    validations:
+      required: true
+  - type: input
+    id: verificationCommand
+    attributes:
+      label: Verification command
+      description: Command the job should run to check the work
+      placeholder: npm test
+    validations:
+      required: true
