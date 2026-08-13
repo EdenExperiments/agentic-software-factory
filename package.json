@@ -1,0 +1,8 @@
+{
+  "name": "agentic-software-factory",
+  "private": true,
+  "description": "Personal Cursor overlay plus opt-in factory contract",
+  "scripts": {
+    "test": "node --test test/overlay.test.mjs"
+  }
+}
