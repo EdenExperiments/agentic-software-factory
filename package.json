@@ -7,9 +7,9 @@
     "factory": "factory/src/cli.ts"
   },
   "scripts": {
-    "factory": "node factory/src/cli.ts",
+    "factory": "node --experimental-strip-types factory/src/cli.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/overlay.test.mjs test/contract.test.ts test/depth.test.ts test/tree.test.ts test/agent-model.test.ts test/issue.test.ts"
+    "test": "node --experimental-strip-types --test test/overlay.test.mjs test/contract.test.ts test/depth.test.ts test/tree.test.ts test/agent-model.test.ts test/issue.test.ts"
   },
   "engines": {
     "node": ">=22.13"

@@ -69,7 +69,7 @@ export function createLocalRunAgent(input: {
   const modelId = resolveSdkModel(input.modelId);
   return async ({ cwd, prompt, allowSplit }) => {
     let split: NonEmptyList<SplitChild> | undefined;
-    await using agent = await Agent.create({
+    const agent = await Agent.create({
       apiKey: input.apiKey,
       model: { id: modelId },
       local: {
@@ -218,6 +218,8 @@ export function createLocalRunAgent(input: {
         };
       }
       throw err;
+    } finally {
+      await agent[Symbol.asyncDispose]();
     }
   };
 }
