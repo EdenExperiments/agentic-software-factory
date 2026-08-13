@@ -1,8 +1,24 @@
 {
   "name": "agentic-software-factory",
   "private": true,
+  "type": "module",
   "description": "Personal Cursor overlay plus opt-in factory contract",
+  "bin": {
+    "factory": "factory/src/cli.ts"
+  },
   "scripts": {
-    "test": "node --test test/overlay.test.mjs"
+    "factory": "node factory/src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/overlay.test.mjs test/contract.test.ts test/depth.test.ts test/tree.test.ts"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "@cursor/sdk": "^1.0.27"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "typescript": "^7.0.2"
   }
 }
