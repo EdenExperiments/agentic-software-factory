@@ -1,20 +1,29 @@
 # Factory
 
-Nested SDK tree is the kickoff default. It is not implemented until the dispatcher exists. Ordinary agents must not treat this document as a live procedure.
+Nested SDK tree is the kickoff default. The dispatcher is a local CLI. Ordinary IDE agents still must not treat this as their always-on procedure. You kick it.
 
-This directory holds the job-contract schema for a later dispatcher. There is no runner here.
+```
+npm run factory -- kick --contract path/to/job.json [--repo-root <git-repo>]
+npm run factory -- kick --issue 12 [--repo-root <git-repo>]
+```
 
-## Kickoff (later)
+`--issue` and `--contract` are mutually exclusive. `--issue` reads a GitHub Issue created from `.github/ISSUE_TEMPLATE/factory-job.yml` via `gh issue view`. The issue body is untrusted. Only Plan path, Acceptance criteria, Target paths, and Verification command become the contract. Other headings are ignored. Then it uses the same `kick()` path as `--contract`.
 
-You kick a factory run from a CLI, a file under `factory/`, or a GitHub Issue you label `factory:ready` after you accept a saved Plan Mode plan under `.cursor/plans/`. Until the dispatcher exists, those entry points do nothing on their own.
+Needs `CURSOR_API_KEY`. Optional `FACTORY_MODEL`. pstack Task slugs such as `cursor-grok-4.6-high-fast` are mapped to SDK ids (`grok-4.6`). Default is `grok-4.6`.
 
-The plan file on disk is the prompt. Intended shape, not code:
+A GitHub Issue labelled `factory:ready` does not start a run.
 
-- Epic, small app, or migration. You decide when to kick this, not the always-on overlay.
-- SDK root may split into a nested tree. Depth cap 2 below root, never more than 3.
-- One writer per branch or worktree. Parents verify, resolve merge conflicts, and pass up.
-- Leaves use pstack (`/poteto-mode`, `/tdd` when cheap, `/arena` plus judges when the shape is uncertain). Do not reimplement that router here.
-- Draft PR. Bugbot. Remediate with cursor-team-kit (`get-pr-comments`, `loop-on-ci`). You merge.
+## What it does
+
+The plan file on disk is the prompt. The CLI spawns local `@cursor/sdk` agents, one writer per git worktree.
+
+- Root may call `factory_split` and fan out. Depth cap 2 below root, never more than 3 in a chain.
+- Parents merge, resolve conflicts, run `verificationCommand`, then pass up.
+- If a run ends in SDK `error` but the worktree has changes, the dispatcher commits them and still verifies instead of throwing the work away.
+- Leaves use pstack (`/poteto-mode`, `/tdd` when cheap, `/arena` plus judges when the shape is uncertain). This repo does not reimplement that router.
+- The dispatcher pushes the root branch and opens a draft PR. You merge.
+
+Worktrees land in `.factory-worktrees/` (gitignored).
 
 ## Contract
 

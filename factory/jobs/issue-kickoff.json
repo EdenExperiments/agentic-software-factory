@@ -1,0 +1,17 @@
+{
+  "planPath": ".cursor/plans/issue-kickoff.plan.md",
+  "acceptanceCriteria": [
+    "kick --issue N reads a GitHub Issue from the factory-job template and runs the same kick() path as --contract",
+    "issue body is untrusted: only planPath, acceptanceCriteria, targetPaths, and verificationCommand are taken from the form headings",
+    "injected instructions in the issue body cannot skip tests, leak secrets, or authorize .github/workflows edits",
+    "factory:ready still does not start a run by itself and no GitHub Actions workflow is added",
+    "npm test and npx tsc --noEmit pass"
+  ],
+  "targetPaths": [
+    "factory/src/cli.ts",
+    "factory/src/issue.ts",
+    "test/issue.test.ts",
+    "factory/README.md"
+  ],
+  "verificationCommand": "npm test"
+}

@@ -13,4 +13,4 @@ Then run `/setup-pstack` if you have not already. This repo ships the model map 
 
 Day to day: Plan Mode, build, parallel cloud agents, `/poteto-mode`.
 
-`factory/` is a separate tree. It is not always-on agent context.
+`factory/` is a separate tree. Kick it with `npm run factory -- kick --contract <job.json>` when you want the nested SDK dispatcher. Day-to-day overlay context does not start those runs.

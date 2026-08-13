@@ -6,9 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Nested SDK tree is the kickoff default. It is not implemented until the dispatcher exists. Ordinary agents must not treat factory docs as a live procedure.
-
-        Fill this after you save a Plan Mode plan under `.cursor/plans/`. Apply the `factory:ready` label yourself when you want a kickoff. Do not rely on this template to start a run.
+        Nested SDK tree is the kickoff default. Fill this after you save a Plan Mode plan under `.cursor/plans/`. Apply the `factory:ready` label yourself when you want a kickoff. The label does not start a run. Kick with `npm run factory -- kick --issue <n>` or `--contract <job.json>`.
   - type: input
     id: planPath
     attributes:

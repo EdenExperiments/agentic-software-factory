@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/EdenExperiments/agentic-software-factory/raw/main/factory/job-contract.schema.json",
   "title": "FactoryJobContract",
-  "description": "Contract for an opt-in factory job. The dispatcher that would consume this schema is not implemented yet.",
+  "description": "Contract for an opt-in factory job consumed by the local SDK dispatcher.",
   "type": "object",
   "additionalProperties": false,
   "required": [
