@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import {
   parseJobContract,
@@ -7,6 +10,15 @@ import {
 } from "../factory/src/contract.ts";
 import { kick } from "../factory/src/tree.ts";
 import type { CreatePr, GitOps, RunAgent, SplitChild, VerifyOps } from "../factory/src/types.ts";
+
+async function withTempRepoRoot<T>(fn: (repoRoot: string) => Promise<T>): Promise<T> {
+  const repoRoot = await mkdtemp(join(tmpdir(), "factory-kick-"));
+  try {
+    return await fn(repoRoot);
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+}
 
 function job() {
   return parseJobContract({
@@ -71,116 +83,126 @@ function verifyOk(): VerifyOps {
 const openPr: CreatePr = async () => "https://example.test/pr/1";
 
 test("kick runs a single writer when the root does not split", async () => {
-  const git = gitMock();
-  const runAgent: RunAgent = async () => ({ kind: "implement" });
-  const result = await kick({
-    repoRoot: "/repo",
-    job: job(),
-    planText: "do the thing",
-    runAgent,
-    git,
-    verify: verifyOk(),
-    createPr: openPr,
+  await withTempRepoRoot(async (repoRoot) => {
+    const git = gitMock();
+    const runAgent: RunAgent = async () => ({ kind: "implement" });
+    const result = await kick({
+      repoRoot,
+      job: job(),
+      planText: "do the thing",
+      runAgent,
+      git,
+      verify: verifyOk(),
+      createPr: openPr,
+    });
+    assert.equal(result.branch, "factory/demo");
+    assert.equal(result.prUrl, "https://example.test/pr/1");
+    assert.equal(git.worktrees.length, 1);
+    assert.match(git.worktrees[0] ?? "", /^factory\/demo@/);
+    assert.deepEqual(git.merges, []);
   });
-  assert.equal(result.branch, "factory/demo");
-  assert.equal(result.prUrl, "https://example.test/pr/1");
-  assert.equal(git.worktrees.length, 1);
-  assert.match(git.worktrees[0] ?? "", /^factory\/demo@/);
-  assert.deepEqual(git.merges, []);
 });
 
 test("kick fans out one worktree per child and merges up", async () => {
-  const git = gitMock();
-  let splitOnce = false;
-  const runAgent: RunAgent = async () => {
-    if (!splitOnce) {
-      splitOnce = true;
-      return {
-        kind: "split",
-        children: [child("left", "src/a.ts"), child("right", "src/b.ts")],
-      };
-    }
-    return { kind: "implement" };
-  };
-  const result = await kick({
-    repoRoot: "/repo",
-    job: job(),
-    planText: "split me",
-    runAgent,
-    git,
-    verify: verifyOk(),
-    createPr: openPr,
+  await withTempRepoRoot(async (repoRoot) => {
+    const git = gitMock();
+    let splitOnce = false;
+    const runAgent: RunAgent = async () => {
+      if (!splitOnce) {
+        splitOnce = true;
+        return {
+          kind: "split",
+          children: [child("left", "src/a.ts"), child("right", "src/b.ts")],
+        };
+      }
+      return { kind: "implement" };
+    };
+    const result = await kick({
+      repoRoot,
+      job: job(),
+      planText: "split me",
+      runAgent,
+      git,
+      verify: verifyOk(),
+      createPr: openPr,
+    });
+    assert.equal(result.branch, "factory/demo");
+    assert.equal(git.worktrees.length, 3);
+    assert.ok(
+      git.worktrees.some((entry) => entry.startsWith("factory/demo/left@")),
+    );
+    assert.ok(
+      git.worktrees.some((entry) => entry.startsWith("factory/demo/right@")),
+    );
+    assert.deepEqual(git.merges, ["factory/demo/left", "factory/demo/right"]);
   });
-  assert.equal(result.branch, "factory/demo");
-  assert.equal(git.worktrees.length, 3);
-  assert.ok(
-    git.worktrees.some((entry) => entry.startsWith("factory/demo/left@")),
-  );
-  assert.ok(
-    git.worktrees.some((entry) => entry.startsWith("factory/demo/right@")),
-  );
-  assert.deepEqual(git.merges, ["factory/demo/left", "factory/demo/right"]);
 });
 
 test("depth-2 nodes cannot split even if the agent asks", async () => {
-  const git = gitMock();
-  const allowSplitByCall: boolean[] = [];
-  const runAgent: RunAgent = async ({ allowSplit }) => {
-    allowSplitByCall.push(allowSplit);
-    if (allowSplit) {
-      return { kind: "split", children: [child("a", "a.ts")] };
-    }
-    return { kind: "implement" };
-  };
-  await kick({
-    repoRoot: "/repo",
-    job: job(),
-    planText: "deep",
-    runAgent,
-    git,
-    verify: verifyOk(),
-    createPr: openPr,
+  await withTempRepoRoot(async (repoRoot) => {
+    const git = gitMock();
+    const allowSplitByCall: boolean[] = [];
+    const runAgent: RunAgent = async ({ allowSplit }) => {
+      allowSplitByCall.push(allowSplit);
+      if (allowSplit) {
+        return { kind: "split", children: [child("a", "a.ts")] };
+      }
+      return { kind: "implement" };
+    };
+    await kick({
+      repoRoot,
+      job: job(),
+      planText: "deep",
+      runAgent,
+      git,
+      verify: verifyOk(),
+      createPr: openPr,
+    });
+    assert.deepEqual(allowSplitByCall, [true, true, false]);
   });
-  assert.deepEqual(allowSplitByCall, [true, true, false]);
 });
 
 test("kick keeps dirty work and still opens a PR when the run errors", async () => {
-  const git = gitMock();
-  const runAgent: RunAgent = async () => ({
-    kind: "error",
-    message: "run run-1 failed after executing: boom",
-    retryable: false,
+  await withTempRepoRoot(async (repoRoot) => {
+    const git = gitMock();
+    const runAgent: RunAgent = async () => ({
+      kind: "error",
+      message: "run run-1 failed after executing: boom",
+      retryable: false,
+    });
+    const result = await kick({
+      repoRoot,
+      job: job(),
+      planText: "salvage me",
+      runAgent,
+      git,
+      verify: verifyOk(),
+      createPr: openPr,
+    });
+    assert.equal(result.prUrl, "https://example.test/pr/1");
   });
-  const result = await kick({
-    repoRoot: "/repo",
-    job: job(),
-    planText: "salvage me",
-    runAgent,
-    git,
-    verify: verifyOk(),
-    createPr: openPr,
-  });
-  assert.equal(result.prUrl, "https://example.test/pr/1");
 });
 
 test("kick fails when the run errors and the worktree is clean", async () => {
-  const git = gitMock({ commitDirty: false });
-  const runAgent: RunAgent = async () => ({
-    kind: "error",
-    message: "run run-1 failed after executing: boom",
-    retryable: false,
+  await withTempRepoRoot(async (repoRoot) => {
+    const git = gitMock({ commitDirty: false });
+    const runAgent: RunAgent = async () => ({
+      kind: "error",
+      message: "run run-1 failed after executing: boom",
+      retryable: false,
+    });
+    await assert.rejects(
+      () =>
+        kick({
+          repoRoot,
+          job: job(),
+          planText: "empty",
+          runAgent,
+          git,
+          verify: verifyOk(),
+          createPr: openPr,
+        }),
+      /failed after executing: boom/,
+    );
   });
-  await assert.rejects(
-    () =>
-      kick({
-        repoRoot: "/repo",
-        job: job(),
-        planText: "empty",
-        runAgent,
-        git,
-        verify: verifyOk(),
-        createPr: openPr,
-      }),
-    /failed after executing: boom/,
-  );
 });
