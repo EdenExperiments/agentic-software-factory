@@ -12,7 +12,20 @@ import type {
   SplitChild,
 } from "./types.ts";
 
-const DEFAULT_MODEL = "cursor-grok-4.6-high-fast";
+const DEFAULT_MODEL = "grok-4.6";
+
+const SDK_MODEL_ALIASES: Record<string, string> = {
+  "cursor-grok-4.6-high-fast": "grok-4.6",
+  "claude-opus-5-thinking-high": "claude-opus-5",
+  "gpt-5.6-sol-xhigh": "gpt-5.6-sol",
+};
+
+export function resolveSdkModel(modelId: string | undefined): string {
+  const requested =
+    modelId === undefined || modelId.trim() === "" ? DEFAULT_MODEL : modelId.trim();
+  const aliased = SDK_MODEL_ALIASES[requested];
+  return aliased ?? requested;
+}
 
 function parseSplitChildren(input: unknown): NonEmptyList<SplitChild> {
   if (!Array.isArray(input) || input.length === 0) {
@@ -53,7 +66,7 @@ export function createLocalRunAgent(input: {
   apiKey: string;
   modelId?: string;
 }): RunAgent {
-  const modelId = input.modelId ?? DEFAULT_MODEL;
+  const modelId = resolveSdkModel(input.modelId);
   return async ({ cwd, prompt, allowSplit }) => {
     let split: NonEmptyList<SplitChild> | undefined;
     await using agent = await Agent.create({
@@ -142,8 +155,24 @@ export function createLocalRunAgent(input: {
         event: "run_started",
         agentId: agent.agentId,
         runId: run.id,
+        modelId,
         cwd,
       });
+      if (run.supports("stream")) {
+        for await (const event of run.stream()) {
+          if (event.type === "status") {
+            log({ event: "run_status", runId: run.id, status: event.status });
+          }
+          if (event.type === "tool_call" && event.status !== "running") {
+            log({
+              event: "tool",
+              runId: run.id,
+              name: event.name,
+              status: event.status,
+            });
+          }
+        }
+      }
       const result = await run.wait();
       switch (result.status) {
         case "finished":
@@ -151,12 +180,20 @@ export function createLocalRunAgent(input: {
             return { kind: "split", children: split };
           }
           return { kind: "implement" };
-        case "error":
+        case "error": {
+          const detail = result.error?.message ?? "no error payload";
+          log({
+            event: "run_error",
+            runId: result.id,
+            durationMs: result.durationMs,
+            error: detail,
+          });
           return {
             kind: "error",
-            message: `run ${result.id} failed after executing`,
+            message: `run ${result.id} failed after executing: ${detail}`,
             retryable: false,
           };
+        }
         case "cancelled":
           return {
             kind: "error",

@@ -171,8 +171,30 @@ async function runNode(input: {
     allowSplit,
   });
   switch (outcome.kind) {
-    case "error":
-      throw new Error(outcome.message);
+    case "error": {
+      log({
+        event: "node_run_error",
+        branch: input.branch,
+        message: outcome.message,
+        retryable: outcome.retryable,
+      });
+      const committed = await input.git.commitIfDirty({
+        cwd: input.cwd,
+        message: `factory: ${input.slice.title} after run error`,
+      });
+      if (!committed) {
+        throw new Error(outcome.message);
+      }
+      await verifyOrFix({
+        cwd: input.cwd,
+        job: input.job,
+        runAgent: input.runAgent,
+        git: input.git,
+        verify: input.verify,
+        title: input.slice.title,
+      });
+      return;
+    }
     case "implement":
       await input.git.commitIfDirty({
         cwd: input.cwd,

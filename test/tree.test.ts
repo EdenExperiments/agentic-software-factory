@@ -26,10 +26,13 @@ function child(id: string, path: string): SplitChild {
   };
 }
 
-function gitMock(): GitOps & { worktrees: string[]; merges: string[] } {
+function gitMock(options?: {
+  commitDirty?: boolean;
+}): GitOps & { worktrees: string[]; merges: string[] } {
   const worktrees: string[] = [];
   const merges: string[] = [];
   let commit = "base";
+  const commitDirty = options?.commitDirty ?? true;
   return {
     worktrees,
     merges,
@@ -47,6 +50,9 @@ function gitMock(): GitOps & { worktrees: string[]; merges: string[] } {
       return "main";
     },
     async commitIfDirty() {
+      if (!commitDirty) {
+        return false;
+      }
       commit = `${commit}+`;
       return true;
     },
@@ -136,4 +142,45 @@ test("depth-2 nodes cannot split even if the agent asks", async () => {
     createPr: openPr,
   });
   assert.deepEqual(allowSplitByCall, [true, true, false]);
+});
+
+test("kick keeps dirty work and still opens a PR when the run errors", async () => {
+  const git = gitMock();
+  const runAgent: RunAgent = async () => ({
+    kind: "error",
+    message: "run run-1 failed after executing: boom",
+    retryable: false,
+  });
+  const result = await kick({
+    repoRoot: "/repo",
+    job: job(),
+    planText: "salvage me",
+    runAgent,
+    git,
+    verify: verifyOk(),
+    createPr: openPr,
+  });
+  assert.equal(result.prUrl, "https://example.test/pr/1");
+});
+
+test("kick fails when the run errors and the worktree is clean", async () => {
+  const git = gitMock({ commitDirty: false });
+  const runAgent: RunAgent = async () => ({
+    kind: "error",
+    message: "run run-1 failed after executing: boom",
+    retryable: false,
+  });
+  await assert.rejects(
+    () =>
+      kick({
+        repoRoot: "/repo",
+        job: job(),
+        planText: "empty",
+        runAgent,
+        git,
+        verify: verifyOk(),
+        createPr: openPr,
+      }),
+    /failed after executing: boom/,
+  );
 });
