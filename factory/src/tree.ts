@@ -43,6 +43,12 @@ function branchSegment(id: string): string {
   return cleaned;
 }
 
+const CHILD_BRANCH_SEP = "@";
+
+export function childGitRef(parentBranch: string, childId: string): string {
+  return `${parentBranch}${CHILD_BRANCH_SEP}${branchSegment(childId)}`;
+}
+
 function worktreePath(repoRoot: string, branch: string): string {
   return join(repoRoot, ".factory-worktrees", branch.replaceAll("/", "-"));
 }
@@ -223,7 +229,7 @@ async function runNode(input: {
       const nextDepth = childDepth(input.depth);
       const childBranches = await Promise.all(
         outcome.children.map(async (child) => {
-          const childBranch = `${input.branch}@${branchSegment(child.id)}`;
+          const childBranch = childGitRef(input.branch, child.id);
           const childCwd = worktreePath(input.repoRoot, childBranch);
           await input.git.createWorktree({
             repoRoot: input.repoRoot,

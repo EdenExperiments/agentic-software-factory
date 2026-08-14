@@ -11,7 +11,7 @@ import {
   parseNonEmptyStringList,
 } from "../factory/src/contract.ts";
 import { createGitOps } from "../factory/src/git.ts";
-import { kick } from "../factory/src/tree.ts";
+import { childGitRef, kick } from "../factory/src/tree.ts";
 import type { CreatePr, GitOps, RunAgent, SplitChild, VerifyOps } from "../factory/src/types.ts";
 
 const execFileAsync = promisify(execFile);
@@ -86,6 +86,21 @@ function verifyOk(): VerifyOps {
 }
 
 const openPr: CreatePr = async () => "https://example.test/pr/1";
+
+test("hyphenated child ids do not collide with nested splits", () => {
+  assert.equal(childGitRef("factory/demo", "left"), "factory/demo@left");
+  assert.equal(childGitRef("factory/demo@left", "a"), "factory/demo@left@a");
+  assert.equal(childGitRef("factory/demo", "left--a"), "factory/demo@left--a");
+  assert.notEqual(
+    childGitRef(childGitRef("factory/demo", "left"), "a"),
+    childGitRef("factory/demo", "left--a"),
+  );
+  const hyphenJoin = (parent: string, id: string) => `${parent}--${id}`;
+  assert.equal(
+    hyphenJoin(hyphenJoin("factory/demo", "left"), "a"),
+    hyphenJoin("factory/demo", "left--a"),
+  );
+});
 
 test("kick runs a single writer when the root does not split", async () => {
   await withTempRepoRoot(async (repoRoot) => {
@@ -261,6 +276,18 @@ test("git worktrees accept sibling factory branches joined with @", async () => 
       repoRoot,
       worktreePath: join(repoRoot, ".factory-worktrees", "factory-demo@left"),
       branch: "factory/demo@left",
+      startPoint,
+    });
+    await ops.createWorktree({
+      repoRoot,
+      worktreePath: join(repoRoot, ".factory-worktrees", "nested-hyphen"),
+      branch: childGitRef("factory/demo@left", "a"),
+      startPoint,
+    });
+    await ops.createWorktree({
+      repoRoot,
+      worktreePath: join(repoRoot, ".factory-worktrees", "hyphen-id"),
+      branch: childGitRef("factory/demo", "left--a"),
       startPoint,
     });
   });
